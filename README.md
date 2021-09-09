@@ -1,15 +1,15 @@
-			Instituto Tecnológico de Costa Rica
-		   Área Académica de Ingeniería en Computadores
-			   Arquitectura de Computadores I
+				Instituto Tecnológico de Costa Rica
+			   Área Académica de Ingeniería en Computadores
+				   Arquitectura de Computadores I
 
 
-		
-		Proyecto 1: Desarrollo de una aplicación para inserción 
-			reverberación en un archivo de audio.
+			
+			Proyecto 1: Desarrollo de una aplicación para inserción 
+				reverberación en un archivo de audio.
 
 
-				Alex Marin Lopez
-				   2015040318
+					Alex Marin Lopez
+					   2015040318
 
 
 **************************************************************************************************************************************************
