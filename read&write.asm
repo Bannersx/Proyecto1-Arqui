@@ -7,7 +7,7 @@ _start:	; Start deberia abrir el archivo y almacenar contadores y punteros en re
         ; Preparing registers
         mov r9, circbuffer      ; start of the buffer (should not be eax)
         mov r10, 3              ; k elements
-        mov r11, 0              ; flag to indicate we reached k
+        mov r14, 0              ; flag to indicate we reached k
         mov r15, text
         mov r12, 0              ; offset to read chunks of data
 
@@ -25,7 +25,6 @@ updatePos:
 
         mov rdi, rax            ; rax holds the fd after open operation
         mov [fd_out],rax        ; Storing the fd
-        mov r14, fd_out
 
 
         ; Lseek
@@ -60,13 +59,10 @@ filling:
         ;
         ; Aqui se procesa cada elemento de 0 a k
         ; El numero se encuentra en RAX despues del atoi
-        ;
+        call processSample
         ;
         mov [r9], rax           ; storing the value into the buffer     ---- RAX will eventually change to whichever buffer/register holds the value after the operation
         dec r10                 ; One element was written
-
-        cmp r10, 0              ; Checking if we reached k
-        je writeNext            ; If at k index, call re-start
 
      ;--------- Writting to the file --------------------------------------------------------   ----------
 
@@ -104,6 +100,9 @@ filling:
         int  0x80    
 
      ;---------------------------------------------------------------------------------------
+        cmp r10, 0              ; Checking if we reached k
+        je writeNext            ; If at k index, call re-start
+
         add r9, 8               ; Moving the pointer to the next element of the buffer
         jmp updatePos           ; If not at k index we keep reading/inserting normally
 
@@ -111,12 +110,41 @@ writeNext:
         
         mov r9, circbuffer      ; Setting the pointer to the start of the buffer
         mov r10, 2              ; Resetting the amount of numbers to be read (k)
-        je end
 
-        add r11, 1              ; 
+        mov r14, 1              ; 
         jmp updatePos           ; With everything ready, go back to reading and writting
 
+;@**************************************************************************************@
+;----------------------------------- Processing ----------------------------------------  
 
+processSample:      ; Reverb
+        cmp r14, 1              ; Check if we filled the buffer already
+        je .complete
+
+        ; processing the first k elements 
+        mov r8, 256  ; One
+        mov r11, 153 ; alpha
+        sub r8, r11
+        mul r8
+
+        jmp .done
+
+.complete:
+        ; processing the rest of the elements 
+        mov r8, 256  ; One
+        mov r14, 153 ; alpha
+        sub r8, r14
+        mul r8       ; rax will hold the value or (1-alpha)*x(n)
+
+        mov r8, rax  ; 
+        mov rax, [r9] ; Loading y(n-k)
+        mul r14    ; alpha*y(n-k)
+        add rax, r8  ; (1-alpha)*x(n) + alpha*y(n-k)
+
+        jmp .done
+.done:
+        ret
+;---------------------------------------------------------------------------------------
 ;@**************************************************************************************@
 ;--------------------------------------- Atoi ------------------------------------------       
 
