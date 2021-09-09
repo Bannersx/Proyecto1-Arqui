@@ -7,7 +7,7 @@ _start:	; Start deberia abrir el archivo y almacenar contadores y punteros en re
         ; Preparing registers
         mov r9, circbuffer      ; start of the buffer (should not be eax)
         mov r10, 3              ; k elements
-        mov r11, 0              ; flag
+        mov r11, 0              ; flag to indicate we reached k
         mov r15, text
         mov r12, 0              ; offset to read chunks of data
 
@@ -24,13 +24,13 @@ updatePos:
         int 0x80                ; Syscall
 
         mov rdi, rax            ; rax holds the fd after open operation
-        mov [fd_out],rax
+        mov [fd_out],rax        ; Storing the fd
         mov r14, fd_out
 
 
         ; Lseek
         mov rax, 8              ; Lseek to update file pointer
-        mov rsi, r12            ; How many bits ahead 
+        mov rsi, r12            ; How many bits ahead we read 
         mov rdx, 0              ; Offset (Keep at 0 to begin at the start)
         syscall
 
@@ -44,11 +44,14 @@ read:
         mov ecx, text           ; We store the file to the buffer 
         mov edx, 4              ; Indicating the number of bits to read
         int 0x80                ; Syscall
-        
+
+        cmp rax, 0              ; When sys_read has nothing left to read it returns a 0 in rax
+        je doneReading
+
         ; Closing the file
-        mov eax, 6
-        mov ebx, [fd_out]
-        int 0x80
+        mov eax, 6              ; Sys_close 
+        mov ebx, [fd_out]       ; Passing the fd
+        int 0x80                ; System interrupt
 
         mov edx, text           ; String representation of X(n)
         mov r13, 4              ; Number of bits 
@@ -59,7 +62,7 @@ filling:
         ; El numero se encuentra en RAX despues del atoi
         ;
         ;
-        mov [r9], rax           ; storing the value into the buffer
+        mov [r9], rax           ; storing the value into the buffer     ---- RAX will eventually change to whichever buffer/register holds the value after the operation
         dec r10                 ; One element was written
 
         cmp r10, 0              ; Checking if we reached k
@@ -108,12 +111,14 @@ writeNext:
         
         mov r9, circbuffer      ; Setting the pointer to the start of the buffer
         mov r10, 2              ; Resetting the amount of numbers to be read (k)
-        cmp r11, 1              ; Checking if we finished reading the file
         je end
 
         add r11, 1              ; 
         jmp updatePos           ; With everything ready, go back to reading and writting
-        
+
+
+;@**************************************************************************************@
+;--------------------------------------- Atoi ------------------------------------------       
 
 atoi:
         xor eax, eax ; zero a "result so far"
@@ -137,23 +142,32 @@ atoi:
         sub ecx, '0' ; "convert" character to number
         imul eax, 16 ; multiply "result so far" by the base
         add eax, ecx ; add in current digit
-        dec r13
+        dec r13      ; One character read
         jmp .top ; until done
 
 .fix: 
         sub ecx, 55     ; Accounting for the character in between
-        imul eax, 16    ; multiplu "result so far" by the base
+        imul eax, 16    ; multiply "result so far" by the base
         add eax, ecx    ; add in current digit
-        dec r13
+        dec r13         ; One character read
         jmp .top        ; go back to loop 
 
 .done:
         ret
 
 
+doneReading:
+        
+
+        ; Do whatever w
 
 ;@**************************************************************************************@
 ;--------------------------------------- ITOA ------------------------------------------
+
+;   Code taken from: https://gist.github.com/SplittyDev/8e728627012e57ac0deac196660014fb
+;   Author: Marco Quinten (SplittyDev)
+;   Modified by: Alex Marin (Bannersx)
+;   Date of change: 8.9.21 (D.M.Y)
 
 ; Routine to convert a 64-bit integer to a string.
 ; Registers are preserved.
@@ -229,8 +243,8 @@ __itoa:
 ;---------------------------------------------------------------------------------------    
 
 end:
-        mov r9, 1
-        int 0x80
+        mov rax, 1      ; Sys_exit
+        int 0x80        ; System interrupt
 
 section .data
         ;
@@ -239,19 +253,22 @@ section .data
         ;
         __itoacvt:
                 db '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        spc: db " "
-        len_spc equ $-spc
-        filename db "test.txt",0
-        output: db "out.txt", 0      ; Name of the output
+        
+        ;alpha = 0x0099
+        ;(1-alpha) = 0x0066
+        spc: db " "                  ; To divide the file
+        len_spc equ $-spc            ; size of the label
+        filename db "test.txt",0     ; Name of the input file
+        output: db "out.txt", 0      ; Name of the output file
 
 section	.bss
-        text resw 2
+        text resw 2          ; Buffer that holds the numeric value read from the sample file
         a resw 5
-        fd_out resb 1
+        fd_out resb 1        ; File descriptor for the file we read OUT of
         b resw 5
-        fd_in resb 1
+        fd_in resb 1         ; File descriptor for the file we wrint IN
         c resw 5
         sfg2 resw 10
-        converted resw 2     ; Buffer used to write to file
-        sfg3 resw 10
-        circbuffer resw 4 ;k
+        converted resw 2     ; Buffer used to write to file. Holds the ascii value of the processed value
+        sfg3 resw 10    
+        circbuffer resw 4    ; Circular buffer of size k = Fs * 50ms
