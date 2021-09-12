@@ -1,4 +1,6 @@
+from os import error
 import soundfile as sf
+import time
 
 # Adds trailing zeros
 def twosComp(value):
@@ -14,6 +16,7 @@ def twosComp(value):
 
     # Plus 1
     # Looks for a zero to assign carried bit
+
     carry = result[-1] == "1"
     if not carry:
         result[-1] = "1"
@@ -95,15 +98,14 @@ def isNeg(value):
 def pfToDec(value):
 
     if len(value) >= 16:
+
         sign = value[0]
 
-        int_part = value[1:8]
-
-        fract_part = value[8:16]
-
         if int(sign):  # If the value is negative, calculate twos complement
-            int_part = twosComp(int_part)
-            fract_part = twosComp(fract_part)
+
+            value = twosComp(value)
+        int_part = value[1:8]
+        fract_part = value[8:16]
 
         result = fractToDec(fract_part)
 
@@ -116,13 +118,13 @@ def pfToDec(value):
 
     sign = treated_value[0]
 
+    if int(sign):
+
+        value = twosComp(value)
+
     int_part = treated_value[1:8]
 
     fract_part = treated_value[8:16]
-
-    if int(sign):
-        int_part = twosComp(int_part)
-        fract_part = twosComp(fract_part)
 
     result = fractToDec(fract_part)
 
@@ -183,29 +185,50 @@ def readFileIntoBuffer(name):
 
     line = file.read().replace("\n", " ")
     buffer = line.split()
+
+    new_buffer = []
+    for line in buffer:
+
+        new_buffer.append(
+            line.replace("0\x00\x00\x00\x00", "0000")
+            .replace("\\00", "0")
+            .replace("\x00", "0")
+        )
+
     file.close()
 
-    return buffer
+    return new_buffer
 
 
 # Converts audio buffer to an audio file
-def hexBufferToAudio(buffer):
+def hexBufferToAudio(buffer, extension, name=False):
 
     audio_buffer = []
-
     for hex in buffer:
-        pf = hexToPf(hex)  # Converts hex buffer value to fixed point
-        dec = pfToDec(pf)  # Converts fixed point buffer value to dec
 
+        pf = hexToPf(hex)  # Converts hex buffer value to fixed point
+
+        dec = pfToDec(pf)  # Converts fixed point buffer value to dec
         audio_buffer.append(dec)  # Adds converted value to the final audio buffer
 
+    if isinstance(name, str):
+        file_name = name + extension
+    else:
+        ts = time.time()
+        file_name = str(ts) + extension
+
     sf.write(
-        "Audio.wav", audio_buffer, 44100, "PCM_24"
+        file_name, audio_buffer, 44100, "PCM_24"
     )  # Writes buffer into an audio file
 
     return
 
 
-buffer = readFileIntoBuffer("MuestreoHexaWav.txt")
+buffer = readFileIntoBuffer("out.txt")
 
-hexBufferToAudio(buffer)
+
+try:
+    hexBufferToAudio(buffer, ".wav", "MuestreoHexaWav")
+    print("success")
+except:
+    print("failed")
