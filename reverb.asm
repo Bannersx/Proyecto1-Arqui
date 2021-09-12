@@ -152,7 +152,7 @@ processSample:      ; Reverb
         jmp .done
 
 .saturate:
-        xor rax, 0x7FFF0000
+        mov rax, 0x7FFF
         jmp .done
 .done:
         ret
