@@ -209,6 +209,12 @@ def hexBufferToAudio(buffer, extension, name=False):
         pf = hexToPf(hex)  # Converts hex buffer value to fixed point
 
         dec = pfToDec(pf)  # Converts fixed point buffer value to dec
+
+        if dec < 0:
+            print("neg")
+        else:
+            print("pos")
+
         audio_buffer.append(dec)  # Adds converted value to the final audio buffer
 
     if isinstance(name, str):
@@ -228,7 +234,7 @@ buffer = readFileIntoBuffer("out.txt")
 
 
 try:
-    hexBufferToAudio(buffer, ".wav", "MuestreoHexaWav")
+    hexBufferToAudio(buffer, ".wav")
     print("success")
 except:
     print("failed")
