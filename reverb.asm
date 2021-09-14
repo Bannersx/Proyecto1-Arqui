@@ -8,9 +8,9 @@ _start:	; Start deberia abrir el archivo y almacenar contadores y punteros en re
         mov r9, circbuffer      ; start of the buffer (should not be eax)
         mov r10, 2205              ; k elements
         mov r14, 0              ; flag to indicate we reached k
-        mov r15, text
+        mov r15, filename
         mov r12, 0              ; offset to read chunks of data
-
+        mov r8, converted
 
 
 updatePos:
@@ -18,19 +18,19 @@ updatePos:
         ;Opening the file
         mov eax, 5              ; Sys_open instruction
         mov ebx, filename       ; Passing the filename
-        mov rcx, 0              ; 
-        mov rdx, 0777           ; Permissions
+        mov ecx, 0              ; 
+        mov edx, 0777           ; Permissions
         
         int 0x80                ; Syscall
 
-        mov rdi, rax            ; rax holds the fd after open operation
-        mov [fd_out],rax        ; Storing the fd
+        mov edi, eax            ; rax holds the fd after open operation
+        mov [fd_out],eax        ; Storing the fd
 
 
         ; Lseek
-        mov rax, 8              ; Lseek to update file pointer
+        mov eax, 8              ; Lseek to update file pointer
         mov rsi, r12            ; How many bits ahead we read 
-        mov rdx, 0              ; Offset (Keep at 0 to begin at the start)
+        mov edx, 0              ; Offset (Keep at 0 to begin at the start)
         syscall
 
 read:
@@ -38,13 +38,13 @@ read:
         ;Reading from the file
           
         
-        mov rax, 3              ; Store the sys_read in rax
-        mov rbx, rdi            ; we store the fd in rbx
+        mov eax, 3              ; Store the sys_read in rax
+        mov ebx, edi            ; we store the fd in rbx
         mov ecx, text           ; We store the file to the buffer 
         mov edx, 4              ; Indicating the number of bits to read
         int 0x80                ; Syscall
 
-        cmp rax, 0              ; When sys_read has nothing left to read it returns a 0 in rax
+        cmp eax, 0              ; When sys_read has nothing left to read it returns a 0 in rax
         je end
 
         ; Closing the file
@@ -61,24 +61,122 @@ filling:
         ; El numero se encuentra en RAX despues del atoi
         call processSample
         ;
-        mov [r9], rax           ; storing the value into the buffer     ---- RAX will eventually change to whichever buffer/register holds the value after the operation
+        mov [r9], eax           ; storing the value into the buffer     ---- RAX will eventually change to whichever buffer/register holds the value after the operation
         dec r10                 ; One element was written
 
      ;--------- Writting to the file --------------------------------------------------------   ----------
 
         ; Opening or creating the file.
-        mov   rax, 2
-        lea   rdi, output
-        mov   rsi, 0x441        ; O_CREAT| O_WRONLY | O_APPEND
+        mov   eax, 2
+        lea   edi, output
+        mov   esi, 0x441        ; O_CREAT| O_WRONLY | O_APPEND
         mov   edx, 0q666        ; octal permissions in case O_CREAT has to create it
         syscall
-        mov   [fd_in], rax      ; save the file descriptor
+        mov   [fd_in], eax      ; save the file descriptor
 
         ;Converting the num to string
-        mov rax, [r9]
-        mov rbx, converted
-        mov rcx, 16
-        call __itoa               
+        mov eax, [r9]                   ; The number i want to convert (Using eax for 32bits)
+        mov ebx, converted              ; Location where the character will be stored
+        mov ecx, 16                     ; Base
+        and dword [converted], 0    ; cleaning the buffer
+.tag2:       
+        call __itoa
+
+        mov r8,[converted]   
+        
+        cmp r8, 0x47   ;Checking if its one char only
+        jnge .oneChar
+
+        cmp r8, 0x4647    ;Checking if its 2 chars
+        jnge .twoChar
+
+        cmp r8, 0x464647    ;Checking if its 3 chars 
+        jnge .threeChar
+
+        jmp tag
+
+.oneChar:
+         ; write into the file
+        mov	edx, 1           ; number of bytes
+        mov	ecx, converted  ; message to write
+        mov	ebx, [fd_in]       ; file descriptor  ---> Segfault Here
+        mov	eax, 4           ; system call number (sys_write)
+        int	0x80             ; call kernel
+        ; spacing
+        mov eax, 4
+        mov ebx, [fd_in]
+        mov ecx, spc
+        mov edx, len_spc
+        int 0x80
+        
+        ; close the file
+        mov eax, 6
+        mov ebx, [fd_in]
+        int  0x80    
+
+     ;---------------------------------------------------------------------------------------
+        cmp r10, 0              ; Checking if we reached k
+        je writeNext            ; If at k index, call re-start
+
+        add r9, 4               ; Moving the pointer to the next element of the buffer
+        jmp updatePos           ; If not at k index we keep reading/inserting normally
+.twoChar:
+         ; write into the file
+        mov	edx, 2           ; number of bytes
+        mov	ecx, converted  ; message to write
+        mov	ebx, [fd_in]       ; file descriptor  ---> Segfault Here
+        mov	eax, 4           ; system call number (sys_write)
+        int	0x80             ; call kernel
+        ; spacing
+        mov eax, 4
+        mov ebx, [fd_in]
+        mov ecx, spc
+        mov edx, len_spc
+        int 0x80
+        
+        ; close the file
+        mov eax, 6
+        mov ebx, [fd_in]
+        int  0x80    
+
+        mov r8, [converted]
+
+
+     ;---------------------------------------------------------------------------------------
+        cmp r10, 0              ; Checking if we reached k
+        je writeNext            ; If at k index, call re-start
+
+        add r9, 4               ; Moving the pointer to the next element of the buffer
+        jmp updatePos           ; If not at k index we keep reading/inserting normally
+
+.threeChar:
+         ; write into the file
+        mov	edx, 3           ; number of bytes
+        mov	ecx, converted  ; message to write
+        mov	ebx, [fd_in]       ; file descriptor  ---> Segfault Here
+        mov	eax, 4           ; system call number (sys_write)
+        int	0x80             ; call kernel
+        ; spacing
+        mov eax, 4
+        mov ebx, [fd_in]
+        mov ecx, spc
+        mov edx, len_spc
+        int 0x80
+        
+        ; close the file
+        mov eax, 6
+        mov ebx, [fd_in]
+        int  0x80    
+
+  ;---------------------------------------------------------------------------------------
+        cmp r10, 0              ; Checking if we reached k
+        je writeNext            ; If at k index, call re-start
+
+        add r9, 4               ; Moving the pointer to the next element of the buffer
+        jmp updatePos           ; If not at k index we keep reading/inserting normally
+
+tag:
+                    
         
         ; write into the file
         mov	edx, 4           ; number of bytes
@@ -99,19 +197,19 @@ filling:
         mov ebx, [fd_in]
         int  0x80    
 
-     ;---------------------------------------------------------------------------------------
+    ;---------------------------------------------------------------------------------------
         cmp r10, 0              ; Checking if we reached k
         je writeNext            ; If at k index, call re-start
 
-        add r9, 1               ; Moving the pointer to the next element of the buffer
+        add r9, 4               ; Moving the pointer to the next element of the buffer
         jmp updatePos           ; If not at k index we keep reading/inserting normally
 
 writeNext:
         
-        mov r9, circbuffer      ; Setting the pointer to the start of the buffer
-        mov r10, 2              ; Resetting the amount of numbers to be read (k)
+        mov r9, circbuffer      ; Setting the pointer to the start of the buffer 0x40009----> 0x40009+2205
+        mov r10, 2205              ; Resetting the amount of numbers to be read (k)
 
-        mov r14, 1              ; 
+        mov r14, 1              ; Flag para indicar que ya lei k elementos
         jmp updatePos           ; With everything ready, go back to reading and writting
 
 ;@**************************************************************************************@
@@ -119,16 +217,20 @@ writeNext:
 
 processSample:      ; Reverb
         cmp r14, 1              ; Check if we filled the buffer already
-        je .complete
+        jnz .complete
 
         ; processing the first k elements 
-        mov r8, 256  ; One
-        mov r11, 153 ; alpha
-        sub r8, r11
+        mov r8, 0x100  ; One
+        mov r11, 0x99 ; alpha
+        sub r8, r11  ; (1-alpha)
+        
+        ;Fixed point multiplication
         mul r8
+        shrd eax, edx, 16
+        adc eax, 0
 
         ; Handling overflow
-        cmp rax, 65535
+        cmp eax, 65535
         jg .saturate
 
         jmp .done
@@ -138,24 +240,39 @@ processSample:      ; Reverb
         mov r8, 256  ; One
         mov r14, 153 ; alpha
         sub r8, r14
+        
+        ; Fixed point mult
         mul r8       ; rax will hold the value or (1-alpha)*x(n)
+        shr eax, 8
+        adc eax, 0
 
         mov r8, rax  ; 
         mov rax, [r9] ; Loading y(n-k)
+        
+        ; Fxp mult
         mul r14    ; alpha*y(n-k)
+        shr eax, 8
+        adc eax, 0
+
         add rax, r8  ; (1-alpha)*x(n) + alpha*y(n-k)
         
         ; Handling Overflow
-        cmp rax, 65535
+        cmp eax, 65535
         jg .saturate
 
         jmp .done
 
 .saturate:
-        mov rax, 0x7FFF
+        mov eax, 0x7FFF
         jmp .done
 .done:
         ret
+
+;---------------------------------------------------------------------------------------
+;@**************************************************************************************@
+;------------------------------ Multiplication ------------------------------------------       
+
+
 ;---------------------------------------------------------------------------------------
 ;@**************************************************************************************@
 ;--------------------------------------- Atoi ------------------------------------------       
@@ -298,7 +415,7 @@ section .data
         ;(1-alpha) = 0x0066
         spc: db " "                  ; To divide the file
         len_spc equ $-spc            ; size of the label
-        filename db "MuestreoHexaWav.txt",0     ; Name of the input file
+        filename db "MuestreoHex.txt",0     ; Name of the input file
         output: db "out.txt", 0      ; Name of the output file
 
 section	.bss
@@ -311,4 +428,4 @@ section	.bss
         sfg2 resw 10
         converted resw 2     ; Buffer used to write to file. Holds the ascii value of the processed value
         sfg3 resw 10    
-        circbuffer resw 2205    ; Circular buffer of size k = Fs * 50ms
+        circbuffer resw 5000    ; Circular buffer of size k = Fs * 50ms
